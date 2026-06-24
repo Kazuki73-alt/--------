@@ -1,0 +1,27 @@
+{
+  "name": "Card AI - デジタル名刺",
+  "short_name": "Card AI",
+  "start_url": "Businesscard.html",
+  "display": "standalone",
+  "background_color": "#f0f4f9",
+  "theme_color": "#1a73e8",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+#### 2. アプリのアイコン画像を用意する
+* ファイル名： `icon.png`
+* 用意の仕方： 192×192ピクセル程度の正方形の画像（png形式）を用意し、同じフォルダに保存します。進捗報告用であれば、適当な星の画像やロゴ画像で構いません。
+
+#### 3. `Businesscard.html` に設定ファイルを読み込ませる
+今ある `Businesscard.html` の `<head>` タブの中（例えば、`<title>` タグのすぐ下あたり）に、以下の**1行を追加**して上書き保存してください。
+
+```html
+<link rel="manifest" href="manifest.json">

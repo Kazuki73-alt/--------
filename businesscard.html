@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>デジタル名刺アプリ - Card AI</title>
+    
+    <!-- アイコンとQRコード読み書きのライブラリ -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <!-- 全てのデザイン(CSS)を直接記述 -->
+    <style>
+        :root {
+            --bg-main: #f0f4f9;
+            --primary: #1a73e8;
+            --text-dark: #1e1e1e;
+            --text-gray: #5f6368;
+            --input-bg: #e9eef6;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text-dark); -webkit-font-smoothing: antialiased; }
+        
+        .app-container { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding-bottom: 100px; position: relative; }
+        
+        /* ヘッダー */
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px; }
+        .header-title { font-size: 20px; font-weight: 600; display: flex; align-items: center; }
+        .gemini-gradient {
+            background: linear-gradient(45deg, #1a73e8, #a545ff, #ff69b4);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: bold; margin-left: 6px;
+        }
+        .header-badge { background: white; color: var(--text-gray); font-size: 12px; padding: 6px 12px; border-radius: 20px; font-weight: bold; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        /* セクション共通 */
+        .section { padding: 0 20px; display: none; animation: fadeIn 0.3s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 名刺カード */
+        .card {
+            background: linear-gradient(135deg, #1e1e24, #111115); border-radius: 24px; padding: 24px; color: white;
+            aspect-ratio: 1.586 / 1; display: flex; flex-direction: column; justify-content: space-between;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); position: relative; overflow: hidden; margin-bottom: 20px;
+        }
+        .card-bg-1 { position: absolute; top: -30%; right: -10%; width: 160px; height: 160px; background: linear-gradient(135deg, #1a73e8, #a545ff); border-radius: 50%; filter: blur(30px); opacity: 0.3; }
+        .card-bg-2 { position: absolute; bottom: -20%; left: -20%; width: 140px; height: 140px; background: #ff69b4; border-radius: 50%; filter: blur(30px); opacity: 0.2; }
+        .card-content { position: relative; z-index: 1; }
+        .card-top { display: flex; justify-content: space-between; align-items: flex-start; }
+        .card-company { font-size: 14px; font-weight: bold; color: #e2e8f0; }
+        .card-dept { font-size: 12px; color: #93c5fd; margin-top: 4px; }
+        .card-icon { width: 32px; height: 32px; background: rgba(255,255,255,0.1); border-radius: 50%; display: flex; justify-content: center; align-items: center; border: 1px solid rgba(255,255,255,0.2); }
+        .card-middle { flex: 1; display: flex; align-items: center; margin: 16px 0; }
+        .card-name { font-size: 26px; font-weight: bold; letter-spacing: 2px; }
+        .card-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
+        .card-slack { display: flex; align-items: center; font-size: 12px; color: #cbd5e1; }
+        .slack-icon-box { background: rgba(255,255,255,0.1); padding: 6px; border-radius: 8px; margin-right: 8px; }
+        .card-qrcode-box { background: white; padding: 6px; border-radius: 10px; width: 64px; height: 64px; display: flex; justify-content: center; align-items: center; }
+
+        /* 入力フォーム */
+        .form-container { background: white; border-radius: 28px; padding: 24px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
+        .form-title { font-size: 12px; font-weight: bold; color: var(--text-gray); margin-bottom: 16px; display: flex; align-items: center; text-transform: uppercase; letter-spacing: 1px; }
+        .input-group { margin-bottom: 16px; }
+        .input-label { font-size: 12px; font-weight: 600; color: var(--text-gray); display: block; margin-bottom: 8px; margin-left: 4px; }
+        .input-field { width: 100%; background: var(--input-bg); border: none; border-radius: 16px; padding: 14px 16px; font-size: 14px; color: var(--text-dark); outline: none; transition: 0.2s; }
+        .input-field:focus { background: white; box-shadow: 0 0 0 2px var(--primary); }
+
+        /* スキャン＆リスト画面 */
+        .scan-box { background: #1e1e24; border-radius: 20px; overflow: hidden; min-height: 250px; margin-bottom: 16px; }
+        .scan-result-card { background: white; border-radius: 24px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-top: 16px; }
+        .scan-result-inner { background: var(--bg-main); padding: 16px; border-radius: 16px; margin: 12px 0; border: 1px solid #e5e7eb; }
+        .list-item { background: white; border-radius: 20px; padding: 20px; margin-bottom: 12px; position: relative; box-shadow: 0 2px 10px rgba(0,0,0,0.02); border: 1px solid #e5e7eb; }
+        .delete-btn { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #d1d5db; cursor: pointer; }
+        
+        /* ボタン類 */
+        .btn { width: 100%; border: none; border-radius: 16px; padding: 14px; font-size: 14px; font-weight: bold; cursor: pointer; display: flex; justify-content: center; align-items: center; margin-top: 8px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: var(--input-bg); color: var(--text-gray); }
+        .btn-sm { width: auto; padding: 8px 16px; font-size: 12px; border-radius: 20px; }
+
+        /* フローティングナビ */
+        .nav-bar { position: fixed; bottom: 20px; left: 20px; right: 20px; max-width: 440px; margin: 0 auto; background: rgba(255,255,255,0.9); backdrop-filter: blur(10px); border-radius: 30px; display: flex; padding: 6px; box-shadow: 0 10px 25px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); z-index: 100; }
+        .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 10px 0; border: none; background: transparent; border-radius: 24px; color: #9aa0a6; cursor: pointer; transition: 0.3s; }
+        .nav-btn.active { color: var(--primary); background: rgba(233, 238, 246, 0.8); font-weight: bold; }
+        .nav-icon { margin-bottom: 4px; }
+        .nav-text { font-size: 10px; }
+
+        /* トースト通知 */
+        .toast { position: fixed; top: -50px; left: 50%; transform: translateX(-50%); background: rgba(30,30,36,0.9); color: white; padding: 10px 20px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; transition: 0.3s; z-index: 200; backdrop-filter: blur(5px); }
+        .toast.show { top: 30px; }
+
+        /* 印刷設定 */
+        @media print {
+            body { background: white !important; }
+            .nav-bar, .header, .form-container, #section-scan, #section-list, .print-hidden { display: none !important; }
+            .card { width: 90mm; height: 55mm; margin: 0 auto; box-shadow: none; border: 1px solid #ccc; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .app-container { padding: 0; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- ヘッダー -->
+        <header class="header">
+            <div class="header-title">
+                <i data-lucide="sparkles" style="color: #1a73e8; width: 24px; height: 24px;"></i>
+                <span class="gemini-gradient">Card AI</span>
+            </div>
+            <div class="header-badge" id="header-badge">マイ名刺</div>
+        </header>
+
+        <!-- =================================== -->
+        <!-- 1. マイ名刺（作成）画面 -->
+        <!-- =================================== -->
+        <div id="section-create" class="section active">
+            
+            <!-- 名刺プレビュー -->
+            <div class="card" id="business-card">
+                <div class="card-bg-1"></div>
+                <div class="card-bg-2"></div>
+                
+                <div class="card-content card-top">
+                    <div>
+                        <div class="card-company" id="disp-company">株式会社〇〇</div>
+                        <div class="card-dept" id="disp-dept">部署・役職</div>
+                    </div>
+                    <div class="card-icon"><i data-lucide="building-2" style="width: 16px; height: 16px; color: rgba(255,255,255,0.8);"></i></div>
+                </div>
+                
+                <div class="card-content card-middle">
+                    <div class="card-name" id="disp-name">氏名</div>
+                </div>
+                
+                <div class="card-content card-bottom">
+                    <div class="card-slack">
+                        <div class="slack-icon-box"><i data-lucide="slack" style="width: 14px; height: 14px; color: white;"></i></div>
+                        <span id="disp-slack" style="opacity: 0.8;">Slack URL</span>
+                    </div>
+                    <div class="card-qrcode-box" id="qrcode">
+                        <i data-lucide="qr-code" id="qr-placeholder" style="width: 28px; height: 28px; color: #cbd5e1;"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 印刷ボタン -->
+            <button onclick="window.print()" class="btn btn-secondary print-hidden" style="margin-bottom: 20px; background: white; border: 1px solid #e5e7eb;">
+                <i data-lucide="printer" style="width: 16px; height: 16px; margin-right: 8px;"></i>名刺を紙に印刷する
+            </button>
+
+            <!-- 入力フォーム -->
+            <div class="form-container print-hidden">
+                <div class="form-title">
+                    <i data-lucide="text-cursor-input" style="width: 16px; height: 16px; margin-right: 8px; color: var(--primary);"></i> Profile Details
+                </div>
+                
+                <div class="input-group">
+                    <label class="input-label">会社名</label>
+                    <input type="text" id="input-company" class="input-field" placeholder="例: 株式会社テクノロジー">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">部署・役職</label>
+                    <input type="text" id="input-dept" class="input-field" placeholder="例: 開発部 エンジニア">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">お名前</label>
+                    <input type="text" id="input-name" class="input-field" placeholder="例: 山田 太郎">
+                </div>
+                <div class="input-group">
+                    <label class="input-label">Slack URL / ID</label>
+                    <input type="text" id="input-slack" class="input-field" placeholder="例: https://xxx.slack.com/...">
+                </div>
+            </div>
+        </div>
+
+        <!-- =================================== -->
+        <!-- 2. スキャン画面 -->
+        <!-- =================================== -->
+        <div id="section-scan" class="section">
+            <div class="form-container" style="margin-bottom: 20px;">
+                <p style="text-align: center; font-size: 12px; color: var(--text-gray); margin-bottom: 16px;">
+                    相手のQRコードをカメラに収めてください
+                </p>
+                <div id="reader" class="scan-box"></div>
+                <p id="camera-error" style="display: none; color: #ef4444; font-size: 12px; text-align: center; margin-top: 10px;"></p>
+            </div>
+
+            <!-- スキャン成功＆自動保存完了画面 -->
+            <div id="scan-result" class="scan-result-card" style="display: none;">
+                <div style="color: #10b981; font-weight: bold; font-size: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 16px;">
+                    <i data-lucide="check-circle-2" style="width: 24px; height: 24px; margin-right: 8px;"></i> 自動保存しました！
+                </div>
+                
+                <div class="scan-result-inner">
+                    <div id="result-company" style="font-size: 12px; font-weight: bold; color: var(--text-gray);"></div>
+                    <div id="result-dept" style="font-size: 12px; color: #9ca3af; margin-bottom: 8px;"></div>
+                    <div id="result-name" style="font-size: 20px; font-weight: bold; color: var(--text-dark);"></div>
+                    <div id="result-slack" style="font-size: 12px; color: var(--primary); margin-top: 8px; word-break: break-all;"></div>
+                </div>
+
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button onclick="resumeScanner()" class="btn btn-primary">
+                        <i data-lucide="scan" style="width: 16px; height: 16px; margin-right: 4px;"></i> 続けてスキャン
+                    </button>
+                    <button onclick="switchTab('list')" class="btn btn-secondary" style="width: auto; padding: 0 20px;">
+                        リストへ
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- =================================== -->
+        <!-- 3. 保存リスト画面 -->
+        <!-- =================================== -->
+        <div id="section-list" class="section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h2 style="font-size: 14px; font-weight: bold; color: var(--text-gray);">SAVED CARDS</h2>
+                <button onclick="downloadCSV()" class="btn btn-secondary btn-sm" style="margin: 0; color: var(--primary); font-weight: bold;">
+                    <i data-lucide="file-spreadsheet" style="width: 14px; height: 14px; margin-right: 4px;"></i> CSV出力
+                </button>
+            </div>
+
+            <div id="list-container">
+                <!-- リストがここに表示される -->
+            </div>
+        </div>
+
+        <!-- 下部ナビゲーション -->
+        <nav class="nav-bar print-hidden">
+            <button onclick="switchTab('create')" id="nav-create" class="nav-btn active">
+                <i data-lucide="user" class="nav-icon"></i><span class="nav-text">マイ名刺</span>
+            </button>
+            <button onclick="switchTab('scan')" id="nav-scan" class="nav-btn">
+                <i data-lucide="scan" class="nav-icon"></i><span class="nav-text">スキャン</span>
+            </button>
+            <button onclick="switchTab('list')" id="nav-list" class="nav-btn">
+                <i data-lucide="folder-heart" class="nav-icon"></i><span class="nav-text">リスト</span>
+            </button>
+        </nav>
+
+        <!-- 通知 -->
+        <div id="toast" class="toast">
+            <i data-lucide="info" style="width: 16px; height: 16px; margin-right: 8px; color: #60a5fa;"></i>
+            <span id="toast-msg"></span>
+        </div>
+
+    </div>
+
+    <script>
+        // アイコン初期化
+        lucide.createIcons();
+
+        /* ============================
+           マイ名刺処理
+        ============================ */
+        const inputs = {
+            company: document.getElementById('input-company'),
+            dept: document.getElementById('input-dept'),
+            name: document.getElementById('input-name'),
+            slack: document.getElementById('input-slack')
+        };
+        const displays = {
+            company: document.getElementById('disp-company'),
+            dept: document.getElementById('disp-dept'),
+            name: document.getElementById('disp-name'),
+            slack: document.getElementById('disp-slack')
+        };
+
+        function loadSavedCardData() {
+            const saved = localStorage.getItem('my_card_data_v2');
+            if (saved) {
+                const data = JSON.parse(saved);
+                inputs.company.value = data.company || '';
+                inputs.dept.value = data.dept || '';
+                inputs.name.value = data.name || '';
+                inputs.slack.value = data.slack || '';
+                updateCard();
+            }
+        }
+
+        function updateCard() {
+            const data = {
+                company: inputs.company.value.trim(),
+                dept: inputs.dept.value.trim(),
+                name: inputs.name.value.trim(),
+                slack: inputs.slack.value.trim()
+            };
+
+            displays.company.textContent = data.company || '株式会社〇〇';
+            displays.dept.textContent = data.dept || '部署・役職';
+            displays.name.textContent = data.name || '氏名';
+            displays.slack.textContent = data.slack || 'Slack URL';
+
+            localStorage.setItem('my_card_data_v2', JSON.stringify(data));
+
+            const hasData = data.company || data.dept || data.name || data.slack;
+            const qrContainer = document.getElementById('qrcode');
+
+            if (hasData) {
+                const placeholder = document.getElementById('qr-placeholder');
+                if (placeholder) placeholder.remove();
+                qrContainer.innerHTML = ''; 
+                new QRCode(qrContainer, {
+                    text: JSON.stringify(data),
+                    width: 100, height: 100,
+                    colorDark : "#111115", colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.L
+                });
+                const canvas = qrContainer.querySelector('canvas');
+                if(canvas) { canvas.style.width = '100%'; canvas.style.height = '100%'; }
+            } else {
+                qrContainer.innerHTML = '<i data-lucide="qr-code" id="qr-placeholder" style="width: 28px; height: 28px; color: #cbd5e1;"></i>';
+                lucide.createIcons();
+            }
+        }
+
+        Object.values(inputs).forEach(input => input.addEventListener('input', updateCard));
+
+        /* ============================
+           スキャン機能・自動保存処理
+        ============================ */
+        let html5QrCode = null;
+
+        function initScanner() {
+            if (!html5QrCode) html5QrCode = new Html5Qrcode("reader");
+            
+            document.getElementById('scan-result').style.display = 'none';
+            document.getElementById('reader').style.display = 'block';
+            document.getElementById('camera-error').style.display = 'none';
+
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 200, height: 200 } }, onScanSuccess, () => {})
+                .catch(err => {
+                    const errEl = document.getElementById('camera-error');
+                    errEl.innerText = "カメラを開けません。HTTPS環境であること、またはブラウザの権限を確認してください。";
+                    errEl.style.display = 'block';
+                });
+        }
+
+        function stopScanner() {
+            if (html5QrCode && html5QrCode.isScanning) {
+                html5QrCode.stop().catch(e => console.error(e));
+            }
+        }
+
+        // QRコードの読み取りに成功した瞬間に呼ばれる関数
+        function onScanSuccess(decodedText) {
+            try {
+                const data = JSON.parse(decodedText);
+                if (!data.name && !data.company) throw new Error("Invalid");
+                
+                // カメラを一時停止
+                stopScanner();
+                
+                // 1. ローカルストレージへ即座に自動保存する
+                const savedContacts = JSON.parse(localStorage.getItem('scanned_contacts_v2') || '[]');
+                data.scannedAt = new Date().toISOString(); // 読み取った時間を追加
+                savedContacts.push(data);
+                localStorage.setItem('scanned_contacts_v2', JSON.stringify(savedContacts));
+
+                // 2. 画面の表示を更新する
+                document.getElementById('result-company').innerText = data.company || '会社名なし';
+                document.getElementById('result-dept').innerText = data.dept || '';
+                document.getElementById('result-name').innerText = data.name || '名前なし';
+                document.getElementById('result-slack').innerText = data.slack || 'Slackなし';
+
+                // カメラ枠を隠して、結果（自動保存完了）枠を表示
+                document.getElementById('reader').style.display = 'none';
+                document.getElementById('scan-result').style.display = 'block';
+                
+                // トースト通知を表示
+                showToast(`${data.name} さんの名刺を保存しました`);
+                
+                // もし端末がバイブレーションに対応していれば振動させる
+                if (navigator.vibrate) navigator.vibrate(200);
+
+            } catch (e) {
+                console.log("名刺のQRコードではありませんでした。");
+            }
+        }
+
+        function resumeScanner() {
+            initScanner();
+        }
+
+        /* ============================
+           リスト・CSV処理
+        ============================ */
+        function renderList() {
+            const container = document.getElementById('list-container');
+            const saved = JSON.parse(localStorage.getItem('scanned_contacts_v2') || '[]');
+            
+            if (saved.length === 0) {
+                container.innerHTML = `
+                    <div style="text-center; padding: 40px 0; background: white; border-radius: 20px; text-align: center;">
+                        <p style="font-size: 12px; color: #9ca3af;">保存されたデータはありません</p>
+                    </div>`;
+                return;
+            }
+
+            container.innerHTML = saved.reverse().map((c, index) => {
+                const originalIndex = saved.length - 1 - index;
+                return `
+                <div class="list-item">
+                    <button onclick="deleteContact(${originalIndex})" class="delete-btn"><i data-lucide="x" style="width: 16px; height: 16px;"></i></button>
+                    <p style="font-size: 11px; font-weight: bold; color: #9ca3af; margin-bottom: 4px;">${c.company || '会社名なし'}</p>
+                    <p style="font-size: 12px; color: #9ca3af;">${c.dept || ''}</p>
+                    <p style="font-size: 18px; font-weight: bold; color: var(--text-dark); margin-top: 4px;">${c.name || '名前なし'}</p>
+                    ${c.slack ? `<a href="${c.slack}" target="_blank" style="display: inline-flex; align-items: center; margin-top: 12px; font-size: 12px; color: var(--primary); background: var(--input-bg); padding: 6px 12px; border-radius: 20px; text-decoration: none; font-weight: bold;"><i data-lucide="slack" style="width: 14px; height: 14px; margin-right: 4px;"></i> Slackを開く</a>` : ''}
+                </div>`;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function deleteContact(index) {
+            if(confirm('このデータを削除しますか？')) {
+                const saved = JSON.parse(localStorage.getItem('scanned_contacts_v2') || '[]');
+                saved.splice(index, 1);
+                localStorage.setItem('scanned_contacts_v2', JSON.stringify(saved));
+                renderList();
+                showToast('削除しました');
+            }
+        }
+
+        function downloadCSV() {
+            const saved = JSON.parse(localStorage.getItem('scanned_contacts_v2') || '[]');
+            if (saved.length === 0) { alert('出力データがありません'); return; }
+            let csv = "スキャン日時,会社名,部署,名前,Slack URL\n";
+            saved.forEach(c => {
+                const date = new Date(c.scannedAt).toLocaleString('ja-JP');
+                const escape = (str) => `"${(str || '').replace(/"/g, '""')}"`;
+                csv += `${escape(date)},${escape(c.company)},${escape(c.dept)},${escape(c.name)},${escape(c.slack)}\n`;
+            });
+            const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+            const blob = new Blob([bom, csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'contacts.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /* ============================
+           タブ切り替えとUI
+        ============================ */
+        function switchTab(tabId) {
+            document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+            document.getElementById(`section-${tabId}`).classList.add('active');
+
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`nav-${tabId}`).classList.add('active');
+
+            const badges = { 'create': 'マイ名刺', 'scan': 'カメラ', 'list': 'コレクション' };
+            document.getElementById('header-badge').innerText = badges[tabId];
+
+            if (tabId === 'scan') initScanner(); else stopScanner();
+            if (tabId === 'list') renderList();
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').innerText = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2500);
+        }
+
+        window.addEventListener('DOMContentLoaded', loadSavedCardData);
+    </script>
+</body>
+</html>
