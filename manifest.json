@@ -1,7 +1,7 @@
 {
   "name": "Card AI - デジタル名刺",
   "short_name": "Card AI",
-  "start_url": "Businesscard.html",
+  "start_url": "index.html",
   "display": "standalone",
   "background_color": "#f0f4f9",
   "theme_color": "#1a73e8",
